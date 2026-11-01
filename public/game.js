@@ -7,9 +7,11 @@ const hallTitle='Chánh điện', yardTitle='Sân chùa Vĩnh Tràng';
 const state={started:false,room:'yard',x:0,z:27,angle:0,name:'Khách',id:null,online:false,peers:[],ws:null,sound:true,audio:null,speech:false,chant:false,lastNet:0,frame:0,interact:null,keys:new Set(),joyX:0,joyY:0,dragging:false,dragX:0,scene:{} ,toastTimer:null,chantTrack:null,ambient:null};
 const PALETTE={cream:'#eacb90',ivory:'#f3e7c5',ochre:'#bf9253',moss:'#66815a',red:'#91543e',dark:'#3b3028',wood:'#6b362c',floor:'#bea787'};
 let W=1,H=1,DPR=1,F=400,cam={x:0,y:3.8,z:0,a:0};
+let quality=localStorage.getItem('vt-quality')||'auto';let fps=60,frames=0,measureAt=performance.now();let cameraReady=false;
+function targetDpr(){const mobile=matchMedia('(pointer:coarse)').matches;return quality==='low'?0.8:quality==='high'?Math.min(devicePixelRatio||1,1.75):Math.min(devicePixelRatio||1,mobile?1:1.25)}
 function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
 function lerp(a,b,t){return a+(b-a)*t}
-function resize(){DPR=Math.min(devicePixelRatio||1,1.5);W=innerWidth;H=innerHeight;canvas.width=Math.round(W*DPR);canvas.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);F=Math.min(W*1.09,H*.91)}
+function resize(){DPR=targetDpr();W=innerWidth;H=innerHeight;canvas.width=Math.round(W*DPR);canvas.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);F=Math.min(W*1.09,H*.91)}
 window.addEventListener('resize',resize);resize();
 const data={yard:[],hall:[]};
 function face(room,pts,color,stroke=null){data[room].push({pts,color,stroke})}
@@ -103,8 +105,11 @@ ctx.fillStyle='#e4b18b';ctx.beginPath();ctx.ellipse(0,-h*.86,h*.17,h*.185,0,0,6.
 if(!me){ctx.font=`700 ${clamp(h*.14,10,14)}px system-ui`;const txt=p.name||'Khách';let width=Math.min(ctx.measureText(txt).width+17,150);ctx.fillStyle='#19382eea';ctx.beginPath();ctx.roundRect(-width/2,-h*1.37,width,23,8);ctx.fill();ctx.fillStyle='#fff4d7';ctx.textAlign='center';ctx.fillText(txt,0,-h*1.37+15)}ctx.restore()}
 function addParticles(t){ // wind-blown petals, subtle atmosphere
 ctx.save();for(let i=0;i<13;i++){let x=((i*137.7+t*.009*(i%3+1))%(W+120))-60,y=((i*89+t*.014*(i%4+1))%(H+70))-30;ctx.globalAlpha=.16+(i%4)*.045;ctx.fillStyle=state.room==='yard'?'#fff5df':'#f7d292';ctx.beginPath();ctx.ellipse(x,y,1.6+(i%3),3.7+(i%2),Math.sin(t*.0004+i),0,6.283);ctx.fill()}ctx.restore()}
-let lastTime=performance.now();function frame(t){const dt=Math.min((t-lastTime)/1000,.05);lastTime=t;if(state.started){move(dt);let bx=Math.sin(state.angle),bz=-Math.cos(state.angle);cam.x=state.x-bx*7.2;cam.z=state.z-bz*7.2;cam.y=4.3;cam.a=state.angle;render(t)}else{cam.x=0;cam.z=36;cam.y=5.8;cam.a=Math.sin(t*.00015)*.08;render(t)}requestAnimationFrame(frame)}
-function render(t){ctx.setTransform(DPR,0,0,DPR,0,0);background();drawWorld();if(state.started){let peers=state.peers.filter(p=>p.room===state.room && p.id!==state.id);peers.sort((a,b)=>Math.hypot(a.x-cam.x,a.z-cam.z)-Math.hypot(b.x-cam.x,b.z-cam.z));for(let p of peers.reverse())drawAvatar(p);drawAvatar(state,true)}addParticles(t);if(state.started)checkInteract()}
+let lastTime=performance.now();function frame(t){const dt=Math.min((t-lastTime)/1000,.05);lastTime=t;frames++;if(t-measureAt>1200){fps=Math.round(frames*1000/(t-measureAt));frames=0;measureAt=t;const label=$('fpsLabel');if(label)label.textContent=fps+' FPS';if(quality==='auto'&&fps<27&&DPR>0.85){DPR=Math.max(.85,DPR-.15);resizeCanvasOnly()}}
+if(state.started){move(dt);let bx=Math.sin(state.angle),bz=-Math.cos(state.angle);const tx=state.x-bx*7.2,tz=state.z-bz*7.2,ty=4.3;
+if(!cameraReady){cam.x=tx;cam.z=tz;cam.y=ty;cam.a=state.angle;cameraReady=true}else{const smoothing=1-Math.exp(-dt*11);cam.x=lerp(cam.x,tx,smoothing);cam.z=lerp(cam.z,tz,smoothing);cam.y=lerp(cam.y,ty,smoothing);cam.a=state.angle}render(t)}else{cam.x=0;cam.z=36;cam.y=5.8;cam.a=Math.sin(t*.00015)*.08;render(t)}requestAnimationFrame(frame)}
+function resizeCanvasOnly(){canvas.width=Math.round(W*DPR);canvas.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0)}
+function render(t){ctx.setTransform(DPR,0,0,DPR,0,0);background();drawWorld();if(state.started){let peers=state.peers.filter(p=>p.room===state.room && p.id!==state.id);peers.sort((a,b)=>Math.hypot(a.x-cam.x,a.z-cam.z)-Math.hypot(b.x-cam.x,b.z-cam.z));for(let p of peers.reverse())drawAvatar(p);drawAvatar(state,true)}if(quality!=='low'&&fps>=24)addParticles(t);if(state.started)checkInteract()}
 function move(dt){let u=0,v=0;const k=state.keys;if(k.has('w')||k.has('arrowup'))v+=1;if(k.has('s')||k.has('arrowdown'))v-=1;if(k.has('a')||k.has('arrowleft'))u-=1;if(k.has('d')||k.has('arrowright'))u+=1;u+=state.joyX;v-=state.joyY;let norm=Math.hypot(u,v);if(norm>1){u/=norm;v/=norm}let speed=6.1;const si=Math.sin(state.angle),co=Math.cos(state.angle);let dx=(u*co+v*si)*speed*dt,dz=(u*si-v*co)*speed*dt;const nx=state.x+dx,nz=state.z+dz;
 if(state.room==='yard'){state.x=clamp(nx,-30,30);state.z=clamp(nz,-6.2,44);if(state.z<-4.9&&Math.abs(state.x)>4.2)state.z=-4.9}
 else{state.x=clamp(nx,-12.3,12.3);state.z=clamp(nz,-24.0,20.9)}
@@ -115,7 +120,7 @@ state.interact=choice;$('actionBtn').textContent=choice.button;let show=['door',
 function inform(msg){$('toast').textContent=msg;$('toast').classList.add('visible');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3100)}
 function updateLocation(){$('locName').textContent=state.room==='hall'?'Chánh điện Vĩnh Tràng':yardTitle;$('locDesc').textContent=state.room==='hall'?'Gỗ chạm, gian thờ · Bình an trong từng hơi thở':'Kiến trúc Á – Âu · Vườn cây thanh tịnh';$('locTop').textContent=state.room==='hall'?'KHÔNG GIAN THANH TỊNH':'KHÁM PHÁ KHÔNG GIAN';$('msgs').textContent='';appendMessage('Hệ thống','Bạn đang ở '+(state.room==='hall'?'chánh điện':'sân chùa')+'. Hãy trò chuyện lịch sự.')}
 function doAction(){if(!state.started)return;resumeAudio();const c=state.interact;if(!c)return;switch(c.type){case 'door':switchRoom('hall');playBell();break;case 'exit':switchRoom('yard');break;case 'prayer':playBell();sayShort('Nam mô A Di Đà Phật.');inform('🙏 Cầu chúc mọi người thân tâm an lạc.');send({type:'activity',kind:'prayer'});break;case 'reflection':inform('🪷 Xin gửi một lời nguyện lành đến tất cả mọi người.');playBell();break;default:inform('🌿 Hít thở nhẹ nhàng. Một phút bình yên cũng thật đáng quý.')}}
-function switchRoom(room){if(room==='hall'){state.x=0;state.z=18;state.angle=0}else{state.x=0;state.z=1;state.angle=Math.PI}state.room=room;ambientRoom();send({type:'room',room});updateLocation();inform(room==='hall'?'🪷 Bạn đã bước vào chánh điện':'🌳 Bạn đã trở lại sân chùa')}
+function switchRoom(room){cameraReady=false;if(room==='hall'){state.x=0;state.z=18;state.angle=0}else{state.x=0;state.z=1;state.angle=Math.PI}state.room=room;ambientRoom();send({type:'room',room});updateLocation();inform(room==='hall'?'🪷 Bạn đã bước vào chánh điện':'🌳 Bạn đã trở lại sân chùa')}
 function sayShort(txt){if(!state.sound||!('speechSynthesis' in window))return;try{speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(txt);u.lang='vi-VN';u.rate=.78;u.pitch=.9;u.volume=.62;speechSynthesis.speak(u)}catch(e){}}
 function setupAudio(){if(state.audio)return;try{state.audio=new(window.AudioContext||window.webkitAudioContext)()}catch(e){state.audio=null}}
 function resumeAudio(){if(!state.sound)return;setupAudio();state.audio?.resume().catch(()=>{});if(state.audio&&!state.ambient){
@@ -141,6 +146,7 @@ if(m.type==='notice')inform(m.text)};
 ws.onclose=()=>{state.online=false;$('dot').classList.remove('live');$('onlineLabel').textContent='Mất kết nối';setTimeout(()=>{if(state.started)connect()},2600)};
 ws.onerror=()=>{};
 }
+$('qualitySelect').value=quality;$('qualitySelect').addEventListener('change',e=>{quality=e.target.value;localStorage.setItem('vt-quality',quality);resize();inform('Đã đổi chất lượng đồ họa: '+quality)});
 $('startBtn').addEventListener('click',()=>{let name=$('nickname').value.trim().replace(/[<>\r\n]/g,'').slice(0,18);state.name=name||'Khách an nhiên';state.started=true;$('entry').classList.add('hide');resize();resumeAudio();connect();inform('Chào '+state.name+'! Hãy thử đi về phía chánh điện.');});
 $('nickname').addEventListener('keydown',e=>{if(e.key==='Enter')$('startBtn').click()});try{$('nickname').value=localStorage.getItem('vt_name')||''}catch(e){};$('nickname').addEventListener('input',()=>(()=>{try{localStorage.setItem('vt_name',$('nickname').value.slice(0,18))}catch(e){}})());
 $('actionBtn').addEventListener('click',doAction);$('bellBtn').addEventListener('click',()=>{playBell();inform('🔔 Một tiếng chuông bình an.');send({type:'activity',kind:'bell'})});$('listenBtn').addEventListener('click',playListening);
@@ -151,18 +157,4 @@ const joy=$('joy'),stick=$('stick');let stickPointer=null;function stickUpdate(e
 let lookPointer=null,lookStart=0;canvas.addEventListener('pointerdown',e=>{if(!state.started)return;lookPointer=e.pointerId;lookStart=e.clientX;canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(e.pointerId!==lookPointer)return;const dx=e.clientX-lookStart;state.angle+=dx*.0045;lookStart=e.clientX});const endLook=e=>{if(e.pointerId===lookPointer)lookPointer=null};canvas.addEventListener('pointerup',endLook);canvas.addEventListener('pointercancel',endLook);
 // Make the first view visible before the player has clicked Enter.
 requestAnimationFrame(frame);
-})();
-
-// Version 2: invite friends from the same hosted room.
-(function(){
- const share=document.getElementById('shareBtn');
- if(!share)return;
- share.addEventListener('click',async()=>{
-   const url=location.origin+location.pathname;
-   try{
-     if(navigator.share){await navigator.share({title:'Chùa Vĩnh Tràng Online',text:'Mời bạn vào chùa tham quan cùng mình 🪷',url});return}
-     if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(url);inform('Đã sao chép link mời bạn!');return}
-   }catch(e){if(e.name==='AbortError')return}
-   window.prompt('Sao chép đường dẫn này để mời bạn cùng chơi:',url);
- });
 })();
