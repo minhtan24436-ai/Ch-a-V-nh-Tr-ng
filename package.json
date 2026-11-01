@@ -1,6 +1,6 @@
 {
   "name": "chua-vinh-trang-online",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "3D mobile browser multiplayer temple-inspired experience",
   "engines": {"node": ">=18"},

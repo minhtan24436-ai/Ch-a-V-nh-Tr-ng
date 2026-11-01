@@ -152,3 +152,17 @@ let lookPointer=null,lookStart=0;canvas.addEventListener('pointerdown',e=>{if(!s
 // Make the first view visible before the player has clicked Enter.
 requestAnimationFrame(frame);
 })();
+
+// Version 2: invite friends from the same hosted room.
+(function(){
+ const share=document.getElementById('shareBtn');
+ if(!share)return;
+ share.addEventListener('click',async()=>{
+   const url=location.origin+location.pathname;
+   try{
+     if(navigator.share){await navigator.share({title:'Chùa Vĩnh Tràng Online',text:'Mời bạn vào chùa tham quan cùng mình 🪷',url});return}
+     if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(url);inform('Đã sao chép link mời bạn!');return}
+   }catch(e){if(e.name==='AbortError')return}
+   window.prompt('Sao chép đường dẫn này để mời bạn cùng chơi:',url);
+ });
+})();
